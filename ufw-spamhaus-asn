@@ -81,7 +81,7 @@ for IP in $( cat $COMBINEDIPV4 ); do
 done
 
 #insert ipv6 IP
-v6ruleid=$(sudo ufw status numbered | grep "(v6)" | grep -o "\\[[0-9]*\\]" | grep -o "[0-9]*" | head -n 1)
 for IP in $( cat $COMBINEDIPV6); do
+    v6ruleid=$(sudo ufw status numbered | grep "(v6)" | grep -o "\\[[0-9]*\\]" | grep -o "[0-9]*" | head -n 1)
     $UFW insert $v6ruleid deny from $IP to any
 done
