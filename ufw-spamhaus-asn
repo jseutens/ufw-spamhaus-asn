@@ -61,7 +61,7 @@ fi
 cat $COMBINEDASNIP."*" > $COMBINEDIPALL
 
 # remove all asn ip lists
-unlink $COMBINEDASNIP."*"
+unlink "$COMBINEDASNIP*"
 
 # split the list in a ipv4 list and a ipv6 list
   for IP in $( cat $COMBINEDIPALL); do
