@@ -58,7 +58,7 @@ done
 fi
 
 # merge all ASN list into 1 big list
-cat $COMBINEDASNIP."*" > $COMBINEDIPALL
+cat "$COMBINEDASNIP*" > $COMBINEDIPALL
 
 # remove all asn ip lists
 unlink "$COMBINEDASNIP*"
