@@ -53,6 +53,7 @@ if [ -f $COMBINEDASN ]; then
 for ASN in $( cat $COMBINEDASN ); do
 # read the ASN IP list
   # get the new ip list from the ASN
+  IPLISTINGASN=$COMBINEDASNIP$ASN
   wget -qc $ASNTRANSLATOR$ASN  -O "$IPLISTINGASN"
 done
 fi
