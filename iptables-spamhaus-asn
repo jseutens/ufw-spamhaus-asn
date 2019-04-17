@@ -1,0 +1,117 @@
+#!/bin/bash
+date
+# https://www.howtoforge.com/tutorial/protect-your-server-computer-with-badips-and-fail2ban/
+# based on this version http://www.timokorthals.de/?p=334
+# https://github.com/cowgill/spamhaus
+# https://github.com/dajul/ufw-spamhaus
+# https://joshtronic.com/2015/09/06/error-invalid-position-1/
+_ipt=/sbin/iptables    # Location of iptables (might be correct)
+_iptv6=/sbin/ip6tables    # Location of iptables (might be correct)
+
+# check if chain exists
+CHAIN_NAME="blacklist-spamhaus-asn"
+CHAIN_NAMEv6="blacklist-spamhaus-asnv6"
+CHAIN_NAME_FILE="/tmp/spamhaus-asn.txt";
+# if iptables version >=1.4.x, you may use -S flag, not -L
+#v6
+if $_iptv6 -S $CHAIN_NAMEv6 > /dev/null
+then
+  #echo chain $CHAIN_NAME exists
+  # flush the chain to repopulate with new downloaded ip list
+  $_iptv6 -F $CHAIN_NAMEv6
+else
+  # echo chain $CHAIN_NAME not exists
+  # create the chain with iptables
+  $_iptv6 -N $CHAIN_NAME
+fi
+#v4
+if $_ipt -S $CHAIN_NAME > /dev/null
+then
+  #echo chain $CHAIN_NAME exists
+  # flush the chain to repopulate with new downloaded ip list
+  $_ipt -F $CHAIN_NAME
+else
+  # echo chain $CHAIN_NAME not exists
+  # create the chain with iptables
+  $_ipt -N $CHAIN_NAME
+fi
+#
+#
+ASNTRANSLATOR="https://www.enjen.net/asn-blocklist/index.php?type=iplist&api=1&asn="
+# list of known spammers ASN
+URL4="https://www.spamhaus.org/drop/asndrop.txt";
+# save local copy here
+FILE4="/tmp/asndrop.lasso";
+# old ASN list 
+COMBINEDASN="/tmp/asndrop.combined"
+# old ip ASN list (without the number)
+COMBINEDASNIP="/tmp/asndropip.combined"
+
+# get a copy of the spam lists ASN
+wget -qc $URL4 -O $FILE4
+if [ $? -ne 0 ]; then
+    exit 1
+fi
+# combine files and filter ASN numbers out of it
+cat $FILE4 | egrep -v '^;' | awk '{ print $1}' > $COMBINEDASN
+
+# remove the ASN list
+unlink $FILE4
+# list all ips in a ASN
+if [ -f $COMBINEDASN ]; then
+for ASN in $( cat $COMBINEDASN ); do
+# read the ASN IP list
+  # get the new ip list from the ASN
+  IPLISTINGASN=$COMBINEDASNIP$ASN
+  wget -qc $ASNTRANSLATOR$ASN  -O "$IPLISTINGASN"
+done
+fi
+
+# merge all ASN list into 1 big list
+cat "$COMBINEDASNIP*" > $CHAIN_NAME_FILE
+
+# remove all asn ip lists
+unlink "$COMBINEDASNIP*"
+
+# list for adding the IPV4 ips
+COMBINEDIPV4="/tmp/spamhaus-asnv4.txt"
+# list for adding the IPV6 ips
+COMBINEDIPV6="/tmp/spamhaus-asnv6.txt"
+#
+# split the list in a ipv4 list and a ipv6 list
+  for IP in $( cat $CHAIN_NAME_FILE); do
+  # check for ip4 or ip6  (very unclean way , only check for colon , trust enjen lists to have correct writing)
+      if [[ $IP =~ .*:.* ]]
+      then
+        echo $IP >> $COMBINEDIPV6
+       else
+        echo $IP >> $COMBINEDIPV4
+      fi
+done
+# first v6 , v4 will be added later before v6 , so v4 has better possibility to match so no v6 rules will be used as its match a blocking , less memory use
+#insert ipv6 IP
+for IPv6 in $( cat $COMBINEDIPV6 ); do
+  $_iptv6 -A $CHAIN_NAMEv6 -s $IPv6 -j LOG --log-prefix "ABUSEDBIP"
+  $_iptv6 -A $CHAIN_NAMEv6 -s $IPv6 -j DROP
+printf '.'
+done
+#
+# Finally, insert or append our black list v6
+$_iptv6 -I INPUT -j $CHAIN_NAMEv6
+$_iptv6 -I OUTPUT -j $CHAIN_NAMEv6
+$_iptv6 -I FORWARD -j $CHAIN_NAMEv6
+#
+#
+#insert ipv4 IP
+for IP in $( cat $COMBINEDIPV4 ); do
+  $_ipt -A $CHAIN_NAME -s $IP -j LOG --log-prefix "ABUSEDBIP"
+  $_ipt -A $CHAIN_NAME -s $IP -j DROP
+printf '.'
+done
+#
+# Finally, insert or append our black list
+$_ipt -I INPUT -j $CHAIN_NAME
+$_ipt -I OUTPUT -j $CHAIN_NAME
+$_ipt -I FORWARD -j $CHAIN_NAME
+#
+date
